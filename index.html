@@ -63,6 +63,7 @@
   :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
   .row { display: flex; gap: 10px; }
   .row > input { flex: 1; min-width: 0; }
+  .row > .solo { flex: 1; }
 
   /* game */
   .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 4px; }
@@ -110,6 +111,14 @@
     <p class="lede">Play a friend from any browser. Start a game and send them the link.</p>
     <div class="panel">
       <button id="create" type="button">Start a new game</button>
+    </div>
+    <div class="panel">
+      <label id="solo-label">Play alone against the computer</label>
+      <div class="row" role="group" aria-labelledby="solo-label">
+        <button type="button" class="secondary solo" data-level="easy">Easy</button>
+        <button type="button" class="secondary solo" data-level="medium">Medium</button>
+        <button type="button" class="secondary solo" data-level="hard">Hard</button>
+      </div>
     </div>
     <form class="panel" id="join-form">
       <label for="code">Have a room code?</label>
@@ -175,7 +184,7 @@
   try { pid = localStorage.getItem("ttt-pid") || (localStorage.setItem("ttt-pid", pid = makeId()), pid); }
   catch { pid = makeId(); }
 
-  let room = null, ws = null, retry = null;
+  let room = null, ws = null, retry = null, solo = "";
   let state = null, prevBoard = Array(9).fill(""), prevLine = false, firstRender = true;
 
   const el = (tag, attrs = {}) => {
@@ -257,7 +266,7 @@
     else if (s.winner) text = s.you === "spectator" ? `${s.winner} wins` : s.winner === s.you ? "You won" : "You lost";
     else if (!s.ready) text = s.you === "spectator" ? "Waiting for a player to leave" : "Waiting for a second player";
     else if (s.you === "spectator") text = `${s.turn} is up`;
-    else text = s.you === s.turn ? "Your turn" : "Opponent's turn";
+    else text = s.you === s.turn ? "Your turn" : (s.solo ? "Computer's turn" : "Opponent's turn");
     $("status").textContent = text;
 
     const you = $("you");
@@ -267,14 +276,14 @@
     // scores
     const sc = s.scores;
     const [l, r] = s.you === "O" ? ["O", "X"] : ["X", "O"];
-    const nameOf = (m) => (s.you === "spectator" ? m : m === s.you ? "You" : "Opponent");
+    const nameOf = (m) => (s.you === "spectator" ? m : m === s.you ? "You" : (s.solo ? `Computer (${s.level})` : "Opponent"));
     $("scores").innerHTML =
       `<span>${nameOf(l)}<b>${sc[l]}</b></span>` +
       `<span>Draws<b>${sc.draw}</b></span>` +
       `<span>${nameOf(r)}<b>${sc[r]}</b></span>`;
 
     $("again").hidden = !(s.winner && s.you !== "spectator");
-    $("share").hidden = s.ready;
+    $("share").hidden = s.ready || s.solo;
 
     prevBoard = [...s.board];
     prevLine = !!s.line;
@@ -285,7 +294,7 @@
   function connect() {
     clearTimeout(retry);
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    ws = new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${pid}`);
+    ws = new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${pid}` + (solo ? `&solo=${solo}` : ""));
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data);
       if (msg.type === "state") render(msg);
@@ -297,10 +306,11 @@
     };
   }
 
-  function enter(code) {
+  function enter(code, level = "") {
     room = code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
     if (!room) return;
-    history.replaceState(null, "", `?room=${room}`);
+    solo = level;
+    history.replaceState(null, "", `?room=${room}` + (solo ? `&solo=${solo}` : ""));
     $("lobby").hidden = true;
     $("game").hidden = false;
     $("link").value = `${location.origin}${location.pathname}?room=${room}`;
@@ -309,7 +319,7 @@
   }
 
   function leave() {
-    const old = ws; room = null; ws = null; state = null;
+    const old = ws; room = null; ws = null; state = null; solo = "";
     clearTimeout(retry);
     if (old) old.close();
     history.replaceState(null, "", location.pathname);
@@ -318,12 +328,15 @@
   }
 
   // ---- lobby + buttons ----
-  $("create").addEventListener("click", () => {
+  function randomCode() {
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     const bytes = new Uint8Array(5);
     crypto.getRandomValues(bytes);
-    enter(Array.from(bytes, (b) => alphabet[b % alphabet.length]).join(""));
-  });
+    return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+  }
+  $("create").addEventListener("click", () => enter(randomCode()));
+  document.querySelectorAll(".solo").forEach((b) =>
+    b.addEventListener("click", () => enter(randomCode(), b.dataset.level)));
   $("join-form").addEventListener("submit", (e) => { e.preventDefault(); enter($("code").value); });
   $("again").addEventListener("click", () => ws && ws.send(JSON.stringify({ type: "rematch" })));
   $("leave").addEventListener("click", leave);
@@ -336,8 +349,10 @@
   });
 
   // Opened from an invite link?
-  const fromUrl = new URLSearchParams(location.search).get("room");
-  if (fromUrl) enter(fromUrl);
+  const params = new URLSearchParams(location.search);
+  const fromUrl = params.get("room");
+  const level = ["easy", "medium", "hard"].includes(params.get("solo")) ? params.get("solo") : "";
+  if (fromUrl) enter(fromUrl, level);
 })();
 </script>
 </body>
