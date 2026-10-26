@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tic-tac-toe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat+Brush&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #e9eef1;
+    --paper-line: #cddae2;
+    --graphite: #2a2f36;
+    --ink: #1f3a8a;      /* X */
+    --pencil: #c23b30;   /* O */
+    --muted: #5d6b76;
+    --display: "Caveat Brush", "Segoe Print", "Bradley Hand", cursive;
+    --text: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: var(--text);
+    color: var(--graphite);
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(var(--paper-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
+    background-size: 26px 26px;
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px 40px;
+  }
+  main { width: 100%; max-width: 480px; }
+  h1 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(44px, 12vw, 64px);
+    line-height: 1;
+    margin: 8px 0 6px;
+  }
+  .lede { color: var(--muted); margin: 0 0 28px; font-size: 18px; }
+  [hidden] { display: none !important; }
+
+  /* lobby */
+  .panel { background: var(--paper); border: 2px solid var(--graphite); border-radius: 6px; padding: 18px; }
+  .panel + .panel { margin-top: 16px; }
+  label { display: block; font-weight: 700; margin-bottom: 6px; }
+  input[type=text] {
+    width: 100%; font: inherit; font-size: 20px; letter-spacing: .08em;
+    padding: 10px 12px; border: 2px solid var(--graphite); border-radius: 4px; background: #fff;
+    text-transform: uppercase;
+  }
+  button {
+    font: inherit; font-weight: 700; cursor: pointer;
+    padding: 11px 18px; border-radius: 4px;
+    border: 2px solid var(--graphite); background: var(--graphite); color: #fff;
+  }
+  button.secondary { background: transparent; color: var(--graphite); }
+  button:hover { filter: brightness(1.15); }
+  button.secondary:hover { background: rgba(42,47,54,.08); filter: none; }
+  :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .row { display: flex; gap: 10px; }
+  .row > input { flex: 1; min-width: 0; }
+
+  /* game */
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .topbar h1 { margin: 0; font-size: 40px; }
+  .you { font-weight: 700; }
+  .you.X { color: var(--ink); }
+  .you.O { color: var(--pencil); }
+  #status {
+    font-family: var(--display); font-size: clamp(28px, 8vw, 38px);
+    line-height: 1.1; min-height: 1.2em; margin: 6px 0 12px;
+  }
+  .board-wrap { width: min(100%, 460px); margin: 0 auto; }
+  svg { display: block; width: 100%; height: auto; touch-action: manipulation; }
+  .hit { fill: transparent; }
+  .hit.can { cursor: pointer; }
+  .hit.can:hover { fill: rgba(31,58,138,.08); }
+  .hit:focus-visible { outline: none; stroke: var(--ink); stroke-width: 3; stroke-dasharray: 7 7; }
+  .mark { fill: none; stroke-linecap: round; stroke-width: 9; }
+  .mark.X { stroke: var(--ink); }
+  .mark.O { stroke: var(--pencil); }
+  .winline { stroke: var(--graphite); stroke-width: 7; stroke-linecap: round; opacity: .85; }
+  .draw {
+    stroke-dasharray: 1; stroke-dashoffset: 1;
+    animation: draw .32s ease-out forwards; animation-delay: var(--delay, 0s);
+  }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .draw { animation: none; stroke-dashoffset: 0; }
+  }
+
+  .scores { display: flex; justify-content: space-between; margin: 14px 2px 0; font-size: 18px; }
+  .scores b { font-family: var(--display); font-weight: 400; font-size: 30px; margin-left: 6px; vertical-align: -3px; }
+  .actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .share { margin-top: 22px; }
+  .share .row input { text-transform: none; letter-spacing: 0; font-size: 16px; }
+  #copied { color: var(--muted); font-size: 15px; margin-top: 6px; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- Lobby -->
+  <section id="lobby">
+    <h1>Tic-tac-toe</h1>
+    <p class="lede">Play a friend from any browser. Start a game and send them the link.</p>
+    <div class="panel">
+      <button id="create" type="button">Start a new game</button>
+    </div>
+    <form class="panel" id="join-form">
+      <label for="code">Have a room code?</label>
+      <div class="row">
+        <input id="code" type="text" maxlength="12" autocomplete="off" spellcheck="false">
+        <button type="submit" class="secondary">Join game</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Game -->
+  <section id="game" hidden>
+    <div class="topbar">
+      <h1>Tic-tac-toe</h1>
+      <span id="you" class="you"></span>
+    </div>
+    <div id="status" role="status" aria-live="polite"></div>
+
+    <div class="board-wrap">
+      <svg id="board" viewBox="0 0 300 300" role="group" aria-label="Game board">
+        <g fill="none" stroke="#2a2f36" stroke-width="5" stroke-linecap="round">
+          <path d="M100 10 C97 100 103 200 100 290"/>
+          <path d="M200 10 C203 100 197 200 200 290"/>
+          <path d="M10 100 C100 103 200 97 290 100"/>
+          <path d="M10 200 C100 197 200 203 290 200"/>
+        </g>
+        <g id="marks"></g>
+        <g id="hits"></g>
+      </svg>
+    </div>
+
+    <div class="scores" id="scores"></div>
+
+    <div class="actions">
+      <button id="again" type="button" hidden>Play again</button>
+      <button id="leave" type="button" class="secondary">Leave room</button>
+    </div>
+
+    <div class="panel share" id="share">
+      <label for="link">Invite link</label>
+      <div class="row">
+        <input id="link" type="text" readonly>
+        <button id="copy" type="button" class="secondary">Copy</button>
+      </div>
+      <div id="copied" aria-live="polite"></div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const NS = "http://www.w3.org/2000/svg";
+
+  // A stable id per browser, so a refresh keeps your seat.
+  function makeId() {
+    const bytes = new Uint8Array(8);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  let pid;
+  try { pid = localStorage.getItem("ttt-pid") || (localStorage.setItem("ttt-pid", pid = makeId()), pid); }
+  catch { pid = makeId(); }
+
+  let room = null, ws = null, retry = null;
+  let state = null, prevBoard = Array(9).fill(""), prevLine = false, firstRender = true;
+
+  const el = (tag, attrs = {}) => {
+    const node = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    return node;
+  };
+
+  // ---- hit areas (built once) ----
+  const hits = [];
+  for (let i = 0; i < 9; i++) {
+    const r = Math.floor(i / 3), c = i % 3;
+    const rect = el("rect", { x: c * 100 + 4, y: r * 100 + 4, width: 92, height: 92, rx: 8, class: "hit", tabindex: 0, role: "button" });
+    rect.addEventListener("click", () => tryMove(i));
+    rect.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tryMove(i); }
+    });
+    $("hits").appendChild(rect);
+    hits.push(rect);
+  }
+
+  function canMove(i) {
+    return state && state.ready && !state.winner && state.you === state.turn && !state.board[i];
+  }
+  function tryMove(i) {
+    if (canMove(i) && ws && ws.readyState === 1) ws.send(JSON.stringify({ type: "move", index: i }));
+  }
+
+  // ---- drawing ----
+  function makeMark(mark, i, animate) {
+    const cx = (i % 3) * 100 + 50, cy = Math.floor(i / 3) * 100 + 50;
+    const g = el("g");
+    const cls = (extra = "", delay = 0) =>
+      `mark ${mark}${animate ? " draw" : ""}` + extra;
+    if (mark === "X") {
+      const a = el("path", { d: `M${cx - 25} ${cy - 23} L${cx + 24} ${cy + 26}`, class: cls(), pathLength: 1 });
+      const b = el("path", { d: `M${cx + 25} ${cy - 25} L${cx - 24} ${cy + 24}`, class: cls(), pathLength: 1 });
+      b.style.setProperty("--delay", ".16s");
+      g.append(a, b);
+    } else {
+      const o = el("ellipse", { cx, cy, rx: 27, ry: 29, transform: `rotate(-12 ${cx} ${cy})`, class: cls(), pathLength: 1 });
+      g.append(o);
+    }
+    return g;
+  }
+
+  function render(s) {
+    state = s;
+
+    const marks = $("marks");
+    marks.innerHTML = "";
+    s.board.forEach((v, i) => {
+      if (v) marks.appendChild(makeMark(v, i, !firstRender && !prevBoard[i]));
+    });
+
+    if (s.line) {
+      const [a, , c] = s.line;
+      const p = (i) => [(i % 3) * 100 + 50, Math.floor(i / 3) * 100 + 50];
+      let [x1, y1] = p(a), [x2, y2] = p(c);
+      const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy), ext = 24;
+      x1 -= (dx / len) * ext; y1 -= (dy / len) * ext;
+      x2 += (dx / len) * ext; y2 += (dy / len) * ext;
+      const line = el("line", { x1, y1, x2, y2, class: "winline" + (!firstRender && !prevLine ? " draw" : ""), pathLength: 1 });
+      line.style.setProperty("--delay", ".2s");
+      marks.appendChild(line);
+    }
+
+    hits.forEach((rect, i) => {
+      const r = Math.floor(i / 3) + 1, c = (i % 3) + 1;
+      const v = s.board[i] || "empty";
+      rect.setAttribute("aria-label", `Row ${r}, column ${c}, ${v}`);
+      rect.setAttribute("aria-disabled", canMove(i) ? "false" : "true");
+      rect.classList.toggle("can", canMove(i));
+    });
+
+    // status
+    let text;
+    if (s.winner === "draw") text = "It's a draw";
+    else if (s.winner) text = s.you === "spectator" ? `${s.winner} wins` : s.winner === s.you ? "You won" : "You lost";
+    else if (!s.ready) text = s.you === "spectator" ? "Waiting for a player to leave" : "Waiting for a second player";
+    else if (s.you === "spectator") text = `${s.turn} is up`;
+    else text = s.you === s.turn ? "Your turn" : "Opponent's turn";
+    $("status").textContent = text;
+
+    const you = $("you");
+    you.textContent = s.you === "spectator" ? "Watching" : `You're ${s.you}`;
+    you.className = "you " + s.you;
+
+    // scores
+    const sc = s.scores;
+    const [l, r] = s.you === "O" ? ["O", "X"] : ["X", "O"];
+    const nameOf = (m) => (s.you === "spectator" ? m : m === s.you ? "You" : "Opponent");
+    $("scores").innerHTML =
+      `<span>${nameOf(l)}<b>${sc[l]}</b></span>` +
+      `<span>Draws<b>${sc.draw}</b></span>` +
+      `<span>${nameOf(r)}<b>${sc[r]}</b></span>`;
+
+    $("again").hidden = !(s.winner && s.you !== "spectator");
+    $("share").hidden = s.ready;
+
+    prevBoard = [...s.board];
+    prevLine = !!s.line;
+    firstRender = false;
+  }
+
+  // ---- connection ----
+  function connect() {
+    clearTimeout(retry);
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${pid}`);
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === "state") render(msg);
+    };
+    ws.onclose = () => {
+      if (!room) return;
+      $("status").textContent = "Connection lost. Reconnecting…";
+      retry = setTimeout(connect, 1500);
+    };
+  }
+
+  function enter(code) {
+    room = code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+    if (!room) return;
+    history.replaceState(null, "", `?room=${room}`);
+    $("lobby").hidden = true;
+    $("game").hidden = false;
+    $("link").value = `${location.origin}${location.pathname}?room=${room}`;
+    firstRender = true; prevBoard = Array(9).fill(""); prevLine = false;
+    connect();
+  }
+
+  function leave() {
+    const old = ws; room = null; ws = null; state = null;
+    clearTimeout(retry);
+    if (old) old.close();
+    history.replaceState(null, "", location.pathname);
+    $("game").hidden = true;
+    $("lobby").hidden = false;
+  }
+
+  // ---- lobby + buttons ----
+  $("create").addEventListener("click", () => {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const bytes = new Uint8Array(5);
+    crypto.getRandomValues(bytes);
+    enter(Array.from(bytes, (b) => alphabet[b % alphabet.length]).join(""));
+  });
+  $("join-form").addEventListener("submit", (e) => { e.preventDefault(); enter($("code").value); });
+  $("again").addEventListener("click", () => ws && ws.send(JSON.stringify({ type: "rematch" })));
+  $("leave").addEventListener("click", leave);
+  $("copy").addEventListener("click", async () => {
+    const input = $("link");
+    try { await navigator.clipboard.writeText(input.value); }
+    catch { input.select(); document.execCommand("copy"); }
+    $("copied").textContent = "Link copied";
+    setTimeout(() => ($("copied").textContent = ""), 2000);
+  });
+
+  // Opened from an invite link?
+  const fromUrl = new URLSearchParams(location.search).get("room");
+  if (fromUrl) enter(fromUrl);
+})();
+</script>
+</body>
+</html>
